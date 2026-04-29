@@ -3,25 +3,14 @@ node_modules/
 package-lock.json
 yarn.lock
 
-# Session files
+# Bot Session
 session/
 auth/
 
-# Environment variables
+# Environment Variables
 .env
 .env.local
 .env.*.local
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # IDE
 .vscode/
@@ -29,8 +18,18 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+.DS_Store
 
-# Build outputs
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Build
 dist/
 build/
-out/
+
+# Temporary Files
+tmp/
+temp/

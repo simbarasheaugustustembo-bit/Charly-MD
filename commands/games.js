@@ -1,51 +1,86 @@
-let games = {}
+/**
+ * Games Commands Handler
+ * Fun games like dice, coin flip, rock-paper-scissors
+ */
 
-module.exports = async (ctx) => {
-    const { sock, from, command, args } = ctx
+module.exports = async (context) => {
+    const { sock, from, command, args } = context;
 
-    // GUESS GAME
-    if (command === "guess") {
-        if (!games[from]) {
-            const number = Math.floor(Math.random() * 10) + 1
-            games[from] = number
-
-            return sock.sendMessage(from, {
-                text: "🎯 Guess a number between 1-10"
-            })
-        } else {
-            const guess = parseInt(args[1])
-
-            if (guess === games[from]) {
-                delete games[from]
-                return sock.sendMessage(from, { text: "🎉 Correct!" })
-            } else {
-                return sock.sendMessage(from, { text: "❌ Wrong, try again" })
-            }
+    try {
+        switch (command) {
+            case "dice":
+                return await rollDice(sock, from);
+            
+            case "coin":
+                return await flipCoin(sock, from);
+            
+            case "rps":
+                return await rockPaperScissors(sock, from, args);
+            
+            default:
+                break;
         }
+    } catch (err) {
+        console.error("❌ Games command error:", err);
+        await sock.sendMessage(from, { text: "❌ Game error occurred" });
+    }
+};
+
+async function rollDice(sock, from) {
+    const result = Math.floor(Math.random() * 6) + 1;
+    const text = `
+🎲 *Dice Roll Result:*
+
+You rolled: *${result}*
+    `;
+    return await sock.sendMessage(from, { text });
+}
+
+async function flipCoin(sock, from) {
+    const result = Math.random() < 0.5 ? "Heads" : "Tails";
+    const emoji = result === "Heads" ? "🪙" : "🪙";
+    const text = `
+${emoji} *Coin Flip Result:*
+
+Result: *${result}*
+    `;
+    return await sock.sendMessage(from, { text });
+}
+
+async function rockPaperScissors(sock, from, args) {
+    if (args.length < 2) {
+        return await sock.sendMessage(from, { text: "❌ Usage: .rps <rock|paper|scissors>" });
     }
 
-    // TRIVIA
-    if (command === "trivia") {
-        const questions = [
-            { q: "Capital of Zambia?", a: "lusaka" },
-            { q: "2+2?", a: "4" }
-        ]
+    const userChoice = args[1]?.toLowerCase();
+    const choices = ["rock", "paper", "scissors"];
 
-        const q = questions[Math.floor(Math.random() * questions.length)]
-
-        games[from] = q.a
-
-        sock.sendMessage(from, { text: `🧠 ${q.q}` })
+    if (!choices.includes(userChoice)) {
+        return await sock.sendMessage(from, { text: "❌ Please choose: rock, paper, or scissors" });
     }
 
-    if (command === "answer") {
-        const ans = args[1]?.toLowerCase()
+    const botChoice = choices[Math.floor(Math.random() * choices.length)];
+    let result = "";
 
-        if (ans === games[from]) {
-            delete games[from]
-            sock.sendMessage(from, { text: "✅ Correct!" })
-        } else {
-            sock.sendMessage(from, { text: "❌ Wrong!" })
-        }
+    if (userChoice === botChoice) {
+        result = "It's a tie! 🤝";
+    } else if (
+        (userChoice === "rock" && botChoice === "scissors") ||
+        (userChoice === "paper" && botChoice === "rock") ||
+        (userChoice === "scissors" && botChoice === "paper")
+    ) {
+        result = "You won! 🎉";
+    } else {
+        result = "Bot won! 🤖";
     }
+
+    const text = `
+🎮 *Rock Paper Scissors:*
+
+*Your Choice:* ${userChoice}
+*Bot Choice:* ${botChoice}
+
+${result}
+    `;
+    return await sock.sendMessage(from, { text });
 }

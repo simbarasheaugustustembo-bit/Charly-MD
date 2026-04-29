@@ -1,91 +1,82 @@
-const fs = require("fs")
+/**
+ * Admin Commands Handler
+ * Commands for group management: kick, promote, demote, mute, unmute
+ */
 
-// LOAD DATABASE
-let warnings = {}
-let antiLink = {}
+module.exports = async (context) => {
+    const { sock, msg, from, args, command, isGroup, isAdmin, isBotAdmin, sender } = context;
 
-if (fs.existsSync("./database/warnings.json")) {
-    warnings = JSON.parse(fs.readFileSync("./database/warnings.json"))
+    if (!isGroup) return; // Only works in groups
+
+    try {
+        switch (command) {
+            case "promote":
+                return await promoteUser(sock, from, args, isAdmin, isBotAdmin);
+            
+            case "demote":
+                return await demoteUser(sock, from, args, isAdmin, isBotAdmin);
+            
+            case "kick":
+                return await kickUser(sock, from, args, isAdmin, isBotAdmin);
+            
+            case "mute":
+                return await muteGroup(sock, from, isAdmin);
+            
+            case "unmute":
+                return await unmuteGroup(sock, from, isAdmin);
+            
+            default:
+                break;
+        }
+    } catch (err) {
+        console.error("❌ Admin command error:", err);
+        await sock.sendMessage(from, { text: "❌ Error executing admin command" });
+    }
+};
+
+async function promoteUser(sock, from, args, isAdmin, isBotAdmin) {
+    if (!isAdmin) return await sock.sendMessage(from, { text: "❌ You must be admin to use this command" });
+    if (!isBotAdmin) return await sock.sendMessage(from, { text: "❌ Bot must be admin to promote users" });
+
+    const mentionedJid = args[1]?.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    if (!mentionedJid) return await sock.sendMessage(from, { text: "❌ Please mention a user to promote" });
+
+    await sock.groupParticipantsUpdate(from, [mentionedJid], "promote");
+    return await sock.sendMessage(from, { text: `✅ User promoted to admin` });
 }
 
-if (fs.existsSync("./database/antilink.json")) {
-    antiLink = JSON.parse(fs.readFileSync("./database/antilink.json"))
+async function demoteUser(sock, from, args, isAdmin, isBotAdmin) {
+    if (!isAdmin) return await sock.sendMessage(from, { text: "❌ You must be admin to use this command" });
+    if (!isBotAdmin) return await sock.sendMessage(from, { text: "❌ Bot must be admin to demote users" });
+
+    const mentionedJid = args[1]?.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    if (!mentionedJid) return await sock.sendMessage(from, { text: "❌ Please mention a user to demote" });
+
+    await sock.groupParticipantsUpdate(from, [mentionedJid], "demote");
+    return await sock.sendMessage(from, { text: `✅ User demoted from admin` });
 }
 
-module.exports = async (ctx) => {
-    const {
-        sock, from, msg, command, isAdmin,
-        isBotAdmin, isGroup, sender
-    } = ctx
+async function kickUser(sock, from, args, isAdmin, isBotAdmin) {
+    if (!isAdmin) return await sock.sendMessage(from, { text: "❌ You must be admin to use this command" });
+    if (!isBotAdmin) return await sock.sendMessage(from, { text: "❌ Bot must be admin to kick users" });
 
-    // WARN
-    if (command === "warn") {
-        if (!isAdmin) return sock.sendMessage(from, { text: "❌ Admin only!" })
+    const mentionedJid = args[1]?.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    if (!mentionedJid) return await sock.sendMessage(from, { text: "❌ Please mention a user to kick" });
 
-        const mentioned = msg.message.extendedTextMessage?.contextInfo?.mentionedJid
-        if (!mentioned) return sock.sendMessage(from, { text: "❌ Tag user!" })
+    await sock.groupParticipantsUpdate(from, [mentionedJid], "remove");
+    return await sock.sendMessage(from, { text: `👋 User has been removed from the group` });
+}
 
-        const user = mentioned[0]
+async function muteGroup(sock, from, isAdmin) {
+    if (!isAdmin) return await sock.sendMessage(from, { text: "❌ You must be admin to mute the group" });
+    
+    await sock.groupSettingUpdate(from, "announcement");
+    return await sock.sendMessage(from, { text: "🔇 Group has been muted" });
+}
 
-        if (!warnings[user]) warnings[user] = 0
-        warnings[user]++
-
-        fs.writeFileSync("./database/warnings.json", JSON.stringify(warnings))
-
-        if (warnings[user] >= 3) {
-            await sock.groupParticipantsUpdate(from, [user], "remove")
-            delete warnings[user]
-            fs.writeFileSync("./database/warnings.json", JSON.stringify(warnings))
-
-            return sock.sendMessage(from, { text: "🚫 User kicked!" })
-        }
-
-        sock.sendMessage(from, { text: `⚠️ Warning ${warnings[user]}/3` })
-    }
-
-    // ANTILINK TOGGLE
-    if (command === "antilink") {
-        if (!isAdmin) return sock.sendMessage(from, { text: "❌ Admin only!" })
-
-        const option = ctx.args[1]
-
-        if (option === "on") antiLink[from] = true
-        else if (option === "off") antiLink[from] = false
-        else return sock.sendMessage(from, { text: "Use: .antilink on/off" })
-
-        fs.writeFileSync("./database/antilink.json", JSON.stringify(antiLink))
-
-        sock.sendMessage(from, { text: `🔗 Anti-link ${option}` })
-    }
-
-    // AUTO ANTILINK
-    if (isGroup && antiLink[from]) {
-        if (ctx.text.includes("chat.whatsapp.com")) {
-            if (!isAdmin && isBotAdmin) {
-                await sock.groupParticipantsUpdate(from, [sender], "remove")
-            }
-        }
-    }
-
-    // PROMOTE
-    if (command === "promote") {
-        if (!isAdmin || !isBotAdmin) return
-
-        const mentioned = msg.message.extendedTextMessage?.contextInfo?.mentionedJid
-        if (!mentioned) return
-
-        await sock.groupParticipantsUpdate(from, mentioned, "promote")
-        sock.sendMessage(from, { text: "✅ Promoted!" })
-    }
-
-    // KICK
-    if (command === "kick") {
-        if (!isAdmin || !isBotAdmin) return
-
-        const mentioned = msg.message.extendedTextMessage?.contextInfo?.mentionedJid
-        if (!mentioned) return
-
-        await sock.groupParticipantsUpdate(from, mentioned, "remove")
-        sock.sendMessage(from, { text: "🚫 Removed!" })
-    }
+async function unmuteGroup(sock, from, isAdmin) {
+    if (!isAdmin) return await sock.sendMessage(from, { text: "❌ You must be admin to unmute the group" });
+    
+    await sock.groupSettingUpdate(from, "not_announcement");
+    return await sock.sendMessage(from, { text: "🔊 Group has been unmuted" });
 }
